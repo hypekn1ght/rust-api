@@ -19,6 +19,7 @@ mod util;
 mod wallet;
 mod wallet_controller;
 mod schema;
+mod upload;
 
 pub type DBPool = Pool<ConnectionManager<PgConnection>>;
 pub type DBPooledConnection = PooledConnection<ConnectionManager<PgConnection>>;
@@ -43,6 +44,7 @@ async fn main() -> io::Result<()> {
         App::new()
             .data(pool.clone())
             .wrap(middleware::Logger::default())
+            .service(upload::upload)
             .service(wallet_controller::list_wallets)
             .service(wallet_controller::get_wallet)
             .service(wallet_controller::create_wallet)

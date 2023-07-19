@@ -1,6 +1,5 @@
 use {
     actix_web::HttpResponse,
-    actix_web::http::header,
     actix_web::web::{Data, Json, Path},
     uuid::Uuid,
 
