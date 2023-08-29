@@ -55,16 +55,16 @@ async fn main() -> io::Result<()> {
     //     }
     // }
 
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL not detected");
-    let manager = ConnectionManager::<PgConnection>::new(database_url);
-    let pool = r2d2::Pool::builder()
-        .build(manager)
-        .expect("Failed to initialize DB connection pool");
+    // let database_url = env::var("DATABASE_URL").expect("DATABASE_URL not detected");
+    // let manager = ConnectionManager::<PgConnection>::new(database_url);
+    // let pool = r2d2::Pool::builder()
+    //     .build(manager)
+    //     .expect("Failed to initialize DB connection pool");
 
     HttpServer::new(move|| {
         App::new()
-            .data(pool.clone())
-            .wrap(middleware::Logger::default())
+            // .data(pool.clone())
+            // .wrap(middleware::Logger::default())
             .service(upload::upload)
             .service(wallet_controller::list_wallets)
             .service(wallet_controller::get_wallet)
