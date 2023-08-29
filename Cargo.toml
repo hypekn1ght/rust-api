@@ -19,4 +19,6 @@ diesel = { version = "1.4.4", features = ["postgres", "r2d2", "chrono", "uuid"]}
 r2d2 = "0.8.8"
 r2d2-diesel = "1.0.0"
 rand = "0.8.4"
+regex = "1"
 uuid = { version = "0.6", features = ["serde", "v4"] }
+tokio = { version = "1", features = ["full"] }

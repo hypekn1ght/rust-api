@@ -1,3 +1,5 @@
+use regex::Regex;
+
 #[macro_use]
 extern crate actix_web;
 
@@ -33,6 +35,25 @@ async fn main() -> io::Result<()> {
 
     env::set_var("RUST_LOG", "actix_web=info, actix_server=info");
     env_logger::init();
+
+    let args: Vec<String> = env::args().collect();
+
+    // if args[1] == "s" {
+
+    //     let input = "[DEBUG] loop broken at:                 (raw: 144135228727111022523112544024323701280)
+
+    //     [DEBUG]                                 (raw: 3)";
+    //     // Define the regular expression pattern
+    //     let re = Regex::new(r"\[DEBUG\]\s+\(raw:\s+(\d+)\)").unwrap();
+    //     // Extract the number from the input string
+    //     let captures = re.captures_iter(&input);
+    //     if let Some(last_capture) = captures.last() {
+    //         if let Some(number_str) = last_capture.get(1) {
+    //             let number = number_str.as_str().parse::<u32>().unwrap();
+    //             println!("Extracted number: {}", number);
+    //         }
+    //     }
+    // }
 
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL not detected");
     let manager = ConnectionManager::<PgConnection>::new(database_url);

@@ -1,54 +1,98 @@
-use {
-
-    actix_multipart::Multipart,
-
-    futures::stream::StreamExt,
-
-    actix_web::{web, HttpResponse, Result},
-    std::fs,
-    std::io::Write,
-    zip::read::ZipArchive,
-
-};
+use crate::util::*;
+use actix_web::{web, HttpResponse, Result};
+use futures::StreamExt;
+use regex::Regex;
+use std::{fs, process::Command};
+use zip::read::ZipArchive;
 
 #[post("/upload")]
-async fn upload(mut payload: Multipart) -> Result<HttpResponse> {
-    println!("processing zip");
-    while let Some(item) = payload.next().await {
-        let mut field = item?;
-        let content_disposition = field
-            .content_disposition()
-            .ok_or(actix_web::error::ParseError::Incomplete)?;
+async fn upload(mut payload: web::Payload) -> Result<HttpResponse, actix_web::Error> {
+    let mut body = web::BytesMut::new();
 
-        let filename = content_disposition.get_filename().unwrap_or("default");
-        let filepath = format!("./tmp/{}", filename);
+    while let Some(chunk) = payload.next().await {
+        let chunk = chunk.map_err(|e| {
+            println!("Error while reading chunk: {}", e);
+            actix_web::error::ErrorInternalServerError(e)
+        })?;
+        body.extend_from_slice(&chunk);
+    }
 
-        let filepath_clone = filepath.clone();
-        let mut f = web::block(move || std::fs::File::create(&filepath_clone))
-            .await
-            .unwrap();
+    let filename = "received.zip";
+    let filepath = format!("./tmp/{}", filename);
 
-        while let Some(chunk) = field.next().await {
-            let data = chunk?;
-            f = web::block(move || f.write_all(&data).map(|_| f)).await?;
-        }
+    fs::write(&filepath, body).map_err(|e| {
+        println!("Failed to write to file: {}", e);
+        actix_web::error::ErrorInternalServerError(e)
+    })?;
 
-        // Extract the zip contents
-        let file = fs::File::open(&filepath).unwrap();
-        let mut archive = ZipArchive::new(file).unwrap();
+    // Extracting the zip contents
+    let file = fs::File::open(&filepath).map_err(|e| {
+        println!("Failed to open the saved zip file: {}", e);
+        actix_web::error::ErrorInternalServerError(e)
+    })?;
 
-        for i in 0..archive.len() {
-            let mut file = archive.by_index(i).unwrap();
-            let outpath = format!("./output/{}", file.name());
+    let mut archive = ZipArchive::new(file).map_err(|e| {
+        println!("Failed to create ZIP archive: {}", e);
+        actix_web::error::ErrorInternalServerError(e)
+    })?;
 
-            if (&*file.name()).ends_with('/') {
-                fs::create_dir_all(&outpath).unwrap();
-            } else {
-                let mut outfile = fs::File::create(&outpath).unwrap();
-                std::io::copy(&mut file, &mut outfile).unwrap();
-            }
+    for i in 0..archive.len() {
+        let mut file = archive.by_index(i).map_err(|e| {
+            println!("Failed to read file from ZIP archive: {}", e);
+            actix_web::error::ErrorInternalServerError(e)
+        })?;
+
+        let outpath = format!("./output/{}", file.name());
+
+        if (&*file.name()).ends_with('/') {
+            fs::create_dir_all(&outpath).map_err(|e| {
+                println!("Failed to create directory for extraction: {}", e);
+                actix_web::error::ErrorInternalServerError(e)
+            })?;
+        } else {
+            let mut outfile = fs::File::create(&outpath).map_err(|e| {
+                println!("Failed to create output file for extraction: {}", e);
+                actix_web::error::ErrorInternalServerError(e)
+            })?;
+            std::io::copy(&mut file, &mut outfile).map_err(|e| {
+                println!("Failed during file extraction process: {}", e);
+                actix_web::error::ErrorInternalServerError(e)
+            })?;
         }
     }
-    println!("processing success");
-    Ok(HttpResponse::Ok().into())
+
+    println!("Upload and processing successful");
+
+    match Command::new("python3")
+        .arg("./src/python/generateCairo.py")
+        .output()
+    {
+        Ok(output) => {
+            let output_log = String::from_utf8_lossy(&output.stdout);
+            println!("python cairo script success ✅ {}", output_log);
+        }
+        Err(e) => {
+            println!("python cairo script fail ❌ {}", e);
+        }
+    }
+
+    match Command::new("scarb")
+        .arg("cairo-test")
+        .arg("-f")
+        .arg("mnist_nn_test")
+        .output()
+    {
+        Ok(output) => {
+            let output_log = String::from_utf8_lossy(&output.stdout);
+            println!("scarb orion script success ✅ {}", output_log);
+
+            Ok(ResponseType::Ok(output_log).get_response()).into()
+        }
+        Err(e) => {
+            println!("scarb orion script fail ❌ {}", e);
+            Ok(ResponseType::NotFound("scarb orion script fail").get_response()).into()
+        }
+    }
+
+    // Ok(HttpResponse::Ok().into())
 }
